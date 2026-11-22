@@ -27,12 +27,10 @@
       z-index: 0;
     }
 
-    /* Warm Sunset Gradient during the 10s approach to 2038 */
     .sky-sunset {
       background: radial-gradient(circle at 50% 85%, #f97316 0%, #b91c1c 35%, #4c1d95 75%, #0f172a 100%);
     }
 
-    /* Temporal Return Gradient during the 10s trip from negative integer to present */
     .sky-return {
       background: radial-gradient(circle at 50% 25%, #38bdf8 0%, #2563eb 45%, #0f172a 90%);
     }
@@ -155,11 +153,6 @@
     button:active:not(:disabled) { transform: scale(0.97); }
     button.secondary { background: #374151; }
     button.secondary:hover:not(:disabled) { background: #4b5563; }
-    button.return-btn {
-      background: #0284c7;
-      box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
-    }
-    button.return-btn:hover:not(:disabled) { background: #0369a1; }
     button:disabled {
       opacity: 0.45;
       cursor: not-allowed;
@@ -246,8 +239,7 @@
 
     <div class="controls">
       <button id="btn-sim" onclick="startForwardSimulation()">Simulate Overflow (10s)</button>
-      <button id="btn-return" class="return-btn" onclick="startReturnSimulation()" style="display: none;">Return From Negative Limit (10s)</button>
-      <button id="btn-reset" class="secondary" onclick="resetToLiveTime()" style="display: none;">Reset to Live Time</button>
+      <button id="btn-reset" class="secondary" onclick="startReturnToLiveTime()" style="display: none;">Reset to Live Time</button>
     </div>
 
     <div id="sim-progress-wrap" class="sim-progress-wrap">
@@ -275,7 +267,7 @@
     const NEGATIVE_32BIT_SECONDS = -2147483648;
     const targetMs = Y2K38_EPOCH_SECONDS * 1000;
     const negativeLimitMs = NEGATIVE_32BIT_SECONDS * 1000;
-    const DURATION_MS = 10000; // Always 10 seconds
+    const DURATION_MS = 10000; // 10 seconds
 
     // Modes: 'live' | 'forward_warp' | 'overflowed' | 'return_warp'
     let mode = 'live';
@@ -284,7 +276,6 @@
     let hasTriggeredCrash = false;
 
     const btnSim = document.getElementById("btn-sim");
-    const btnReturn = document.getElementById("btn-return");
     const btnReset = document.getElementById("btn-reset");
     const progressWrap = document.getElementById("sim-progress-wrap");
     const progressFill = document.getElementById("sim-progress-fill");
@@ -304,65 +295,43 @@
       skyReturn.style.opacity = "0";
       skySunset.style.opacity = "0.2";
 
-      // Lock all simulation/reset controls while the 10s loading warp runs
+      // Lock both buttons while the 10s overflow simulation runs
       btnSim.disabled = true;
-      btnSim.textContent = "Simulating Sunset (10s)...";
-      btnReturn.style.display = "none";
-      btnReturn.disabled = true;
+      btnSim.textContent = "Simulating Overflow (10s)...";
       btnReset.style.display = "inline-block";
       btnReset.disabled = true;
+      btnReset.textContent = "Reset Locked (10s)";
 
       progressWrap.style.display = "block";
       progressMeta.style.color = "#fb923c";
       progressFill.style.background = "linear-gradient(90deg, #38bdf8, #f97316, #ef4444)";
     }
 
-    function startReturnSimulation() {
-      if (mode !== 'overflowed') return;
+    function startReturnToLiveTime() {
+      // Locked while forward_warp or return_warp is in progress
+      if (mode === 'forward_warp' || mode === 'return_warp') return;
 
       mode = 'return_warp';
       hasTriggeredCrash = false;
       animStartRealMs = performance.now();
-      // Start directly from the negative 32-bit integer limit (-2,147,483,648)
+      // Start from the negative 32-bit integer limit (-2,147,483,648) and speed back to live time in 10s
       animStartVirtualMs = negativeLimitMs;
 
       clearCrashEffects();
       skySunset.style.opacity = "0";
       skyReturn.style.opacity = "0.85";
 
-      // Lock return and reset buttons while traveling back to current time over 10s
-      btnSim.style.display = "none";
-      btnReturn.style.display = "inline-block";
-      btnReturn.disabled = true;
-      btnReturn.textContent = "Returning to Present (10s)...";
+      // Lock buttons during the 10s return journey back to current live time
+      btnSim.style.display = "inline-block";
+      btnSim.disabled = true;
+      btnSim.textContent = "Returning to Present (10s)...";
       btnReset.style.display = "inline-block";
       btnReset.disabled = true;
+      btnReset.textContent = "Reset Locked (10s)";
 
       progressWrap.style.display = "block";
       progressMeta.style.color = "#38bdf8";
       progressFill.style.background = "linear-gradient(90deg, #ef4444, #6366f1, #38bdf8)";
-    }
-
-    function resetToLiveTime() {
-      // Only allowed when not actively loading/warping
-      if (mode === 'forward_warp' || mode === 'return_warp') return;
-
-      mode = 'live';
-      hasTriggeredCrash = false;
-      clearCrashEffects();
-      skySunset.style.opacity = "0";
-      skyReturn.style.opacity = "0";
-      progressWrap.style.display = "none";
-
-      btnSim.style.display = "inline-block";
-      btnSim.disabled = false;
-      btnSim.textContent = "Simulate Overflow (10s)";
-
-      btnReturn.style.display = "none";
-      btnReturn.disabled = true;
-
-      btnReset.style.display = "none";
-      btnReset.disabled = true;
     }
 
     function triggerCrashEffects() {
@@ -373,13 +342,13 @@
       document.body.classList.add("system-crashed");
       card.classList.add("crashed-card", "impact-shake");
 
-      // Loading complete: unlock the 10s return button and reset button
-      btnSim.style.display = "none";
-      btnReturn.style.display = "inline-block";
-      btnReturn.disabled = false;
-      btnReturn.textContent = "Return From Negative Limit (10s)";
+      // 10s overflow loading completed: unlock Reset to Live Time
+      btnSim.style.display = "inline-block";
+      btnSim.disabled = false;
+      btnSim.textContent = "Simulate Overflow (10s)";
       btnReset.style.display = "inline-block";
       btnReset.disabled = false;
+      btnReset.textContent = "Reset to Live Time";
 
       setTimeout(() => {
         card.classList.remove("impact-shake");
@@ -411,7 +380,6 @@
         const progress = Math.min(elapsedReal / DURATION_MS, 1);
         virtualMs = animStartVirtualMs + (targetMs - animStartVirtualMs) * progress;
 
-        // Sunset gradient deepens as time races toward the 2038 cutoff
         skySunset.style.opacity = (0.2 + progress * 0.7).toFixed(2);
 
         const clampedSec = Math.min(elapsedReal / 1000, 10).toFixed(1);
@@ -429,7 +397,7 @@
       } else if (mode === 'return_warp') {
         const progress = Math.min(elapsedReal / DURATION_MS, 1);
         const liveNowMs = Date.now();
-        // Linearly speed up from negative 32-bit limit (-2,147,483,648) to current time in 10s
+        // Speed up linearly from negative 32-bit limit (-2,147,483,648) back to live present time over 10s
         virtualMs = negativeLimitMs + (liveNowMs - negativeLimitMs) * progress;
 
         skyReturn.style.opacity = (0.85 * (1 - progress * 0.75)).toFixed(2);
@@ -442,7 +410,7 @@
         progressFill.style.width = `${progress * 100}%`;
 
         if (progress >= 1) {
-          // 10s return complete: unlock buttons and return to live present time
+          // 10s return to live time finished: unlock buttons & return to normal live mode
           mode = 'live';
           virtualMs = Date.now();
           skyReturn.style.opacity = "0";
@@ -452,11 +420,9 @@
           btnSim.disabled = false;
           btnSim.textContent = "Simulate Overflow (10s)";
 
-          btnReturn.style.display = "none";
-          btnReturn.disabled = true;
-
           btnReset.style.display = "none";
           btnReset.disabled = true;
+          btnReset.textContent = "Reset to Live Time";
         }
       }
 
@@ -468,7 +434,6 @@
       const elTitle = document.getElementById("title");
 
       const actualSeconds = Math.floor(virtualMs / 1000);
-      // Show continuous climbing seconds during return_warp from -2,147,483,648 to current time
       const displaySeconds = (mode === 'return_warp') ? actualSeconds : (actualSeconds | 0);
       
       elElapsed.textContent = displaySeconds.toLocaleString();
