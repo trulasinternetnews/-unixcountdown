@@ -1,0 +1,64 @@
+function doGet() {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #111827;
+            color: #f9fafb;
+            text-align: center;
+          }
+          .card { padding: 2rem; max-width: 520px; }
+          .countdown { font-size: 1.5rem; font-weight: 700; margin: 1rem 0; }
+          .sub { color: #9ca3af; font-size: 0.95rem; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>32-Bit Unix Time Remaining</h1>
+          <div id="countdown" class="countdown">Calculating...</div>
+          <div id="seconds" class="sub"></div>
+          <p class="sub">Cutoff: Jan 19, 2038, 03:14:07 UTC</p>
+        </div>
+
+        <script>
+          const Y2K38_EPOCH_SECONDS = 2147483647;
+          const targetMs = Y2K38_EPOCH_SECONDS * 1000;
+
+          function update() {
+            const diffMs = targetMs - Date.now();
+            const el = document.getElementById("countdown");
+            const secEl = document.getElementById("seconds");
+
+            if (diffMs <= 0) {
+              el.textContent = "32-bit Unix time has already overflowed!";
+              secEl.textContent = "";
+              return;
+            }
+
+            const totalSeconds = Math.floor(diffMs / 1000);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            el.textContent = \`\${days}d \${hours}h \${minutes}m \${seconds}s\`;
+            secEl.textContent = \`\${totalSeconds.toLocaleString()} total seconds left\`;
+          }
+
+          update();
+          setInterval(update, 1000);
+        </script>
+      </body>
+    </html>
+  `;
+
+  return HtmlService.createHtmlOutput(html).setTitle("Y2K38 Countdown");
+}
