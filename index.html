@@ -12,16 +12,72 @@
       background: #111827;
       color: #f9fafb;
       text-align: center;
+      overflow-x: hidden;
+      transition: background-color 0.2s;
     }
-    .card { padding: 2rem; max-width: 600px; }
+
+    /* Subtle CRT scanline overlay during overflow */
+    body.system-crashed::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .card { 
+      padding: 2rem; 
+      max-width: 620px; 
+      position: relative;
+      border-radius: 12px;
+      transition: box-shadow 0.3s, border 0.3s;
+    }
+
+    .card.crashed-card {
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.2);
+      background: rgba(17, 24, 39, 0.95);
+    }
+
     .counter { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; }
     .sub { color: #9ca3af; font-size: 0.95rem; }
-    .elapsed { color: #38bdf8; font-family: monospace; font-size: 1.25rem; }
+    .elapsed { color: #38bdf8; font-family: monospace; font-size: 1.35rem; }
     .overflowed { color: #ef4444 !important; }
     
+    /* 32-Bit Binary Register Display */
+    .binary-box {
+      font-family: monospace;
+      font-size: 0.85rem;
+      background: #090d16;
+      padding: 0.65rem;
+      border-radius: 6px;
+      margin: 0.75rem auto;
+      border: 1px solid #1e293b;
+      letter-spacing: 1px;
+      word-break: break-all;
+    }
+    .sign-bit {
+      color: #10b981;
+      font-weight: 800;
+      padding: 1px 4px;
+      background: rgba(16, 185, 129, 0.15);
+      border-radius: 3px;
+    }
+    .sign-bit.flipped {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.25);
+    }
+
     /* Simulation Controls & Readout */
     .controls {
-      margin: 1.5rem 0;
+      margin: 1.25rem 0;
       display: flex;
       gap: 0.75rem;
       justify-content: center;
@@ -36,12 +92,12 @@
       font-weight: 600;
       cursor: pointer;
       font-size: 0.9rem;
-      transition: background 0.15s;
+      transition: background 0.15s, transform 0.1s;
     }
     button:hover { background: #1d4ed8; }
+    button:active { transform: scale(0.97); }
     button.secondary { background: #374151; }
     button.secondary:hover { background: #4b5563; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .sim-date {
       font-family: monospace;
@@ -62,20 +118,67 @@
       color: #d1d5db;
       text-align: left;
     }
+
+    /* --- GLITCH ANIMATIONS --- */
+    
+    /* 1. Initial Violent Impact Shake (plays once on overflow) */
+    @keyframes crash-impact {
+      0% { transform: translate(0, 0) skew(0deg); filter: invert(0); }
+      10% { transform: translate(-12px, 6px) skew(-8deg); filter: invert(0.8) hue-rotate(90deg); }
+      20% { transform: translate(12px, -6px) skew(8deg); }
+      30% { transform: translate(-8px, -4px) skew(-4deg); filter: invert(0); }
+      40% { transform: translate(8px, 4px) skew(4deg); }
+      50% { transform: translate(-4px, 2px); }
+      60% { transform: translate(4px, -2px); }
+      100% { transform: translate(0, 0) skew(0deg); }
+    }
+
+    .impact-shake {
+      animation: crash-impact 0.55s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    /* 2. Ongoing Chromatic Aberration & Text Jitter */
+    @keyframes text-glitch {
+      0%, 92%, 100% {
+        text-shadow: none;
+        transform: translate(0, 0);
+      }
+      93% {
+        text-shadow: -3px 0 #ef4444, 3px 0 #06b6d4;
+        transform: translate(2px, -1px);
+      }
+      95% {
+        text-shadow: 3px 0 #ef4444, -3px 0 #06b6d4;
+        transform: translate(-2px, 1px);
+      }
+      97% {
+        text-shadow: -2px 1px #ef4444, 2px -1px #06b6d4;
+        transform: translate(1px, 0);
+      }
+    }
+
+    .glitch-text {
+      animation: text-glitch 2.5s infinite;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>32-Bit Unix Time Tracker</h1>
+  <div id="main-card" class="card">
+    <h1 id="title">32-Bit Unix Time Tracker</h1>
     <div class="sub">Signed 32-Bit Integer Value (Seconds):</div>
     <div id="elapsed" class="counter elapsed">Calculating...</div>
     
+    <div class="binary-box" title="Leftmost bit is the Sign Bit (0 = Positive, 1 = Negative)">
+      <span class="sub" style="font-size: 0.75rem; display: block; margin-bottom: 4px;">32-BIT BINARY REGISTER (SIGN BIT HIGHLIGHTED):</span>
+      <span id="binary-display">01111111 11111111 11111111 11111111</span>
+    </div>
+
     <div class="sim-date">
       System Clock: <strong id="system-date">Calculating...</strong>
     </div>
 
     <div class="controls">
-      <button id="btn-sim" onclick="startSimulation()">Simulate Overflow (T- 10s)</button>
+      <button id="btn-sim" onclick="startSimulation()">Simulate Overflow (T- 5s)</button>
       <button id="btn-reset" class="secondary" onclick="resetSimulation()" style="display: none;">Reset to Live Time</button>
     </div>
 
@@ -93,17 +196,19 @@
     const Y2K38_EPOCH_SECONDS = 2147483647;
     const targetMs = Y2K38_EPOCH_SECONDS * 1000;
     
-    // Tracks the offset in milliseconds when simulating
     let timeOffsetMs = 0;
     let isSimulating = false;
+    let hasTriggeredCrash = false;
 
     function startSimulation() {
-      // Jump to 10 seconds before the Y2K38 cutoff
-      const simStartMs = targetMs - 10000;
+      // Jump to 5 seconds before the Y2K38 cutoff for quick action
+      const simStartMs = targetMs - 5000;
       timeOffsetMs = simStartMs - Date.now();
       isSimulating = true;
+      hasTriggeredCrash = false;
 
-      document.getElementById("btn-sim").textContent = "Restart Simulation (T- 10s)";
+      clearCrashEffects();
+      document.getElementById("btn-sim").textContent = "Restart Simulation (T- 5s)";
       document.getElementById("btn-reset").style.display = "inline-block";
       update();
     }
@@ -111,10 +216,43 @@
     function resetSimulation() {
       timeOffsetMs = 0;
       isSimulating = false;
+      hasTriggeredCrash = false;
 
-      document.getElementById("btn-sim").textContent = "Simulate Overflow (T- 10s)";
+      clearCrashEffects();
+      document.getElementById("btn-sim").textContent = "Simulate Overflow (T- 5s)";
       document.getElementById("btn-reset").style.display = "none";
       update();
+    }
+
+    function triggerCrashEffects() {
+      if (hasTriggeredCrash) return;
+      hasTriggeredCrash = true;
+
+      const card = document.getElementById("main-card");
+      document.body.classList.add("system-crashed");
+      card.classList.add("crashed-card", "impact-shake");
+
+      // Remove the violent shake class after it finishes so it can re-trigger if restarted
+      setTimeout(() => {
+        card.classList.remove("impact-shake");
+      }, 600);
+    }
+
+    function clearCrashEffects() {
+      const card = document.getElementById("main-card");
+      document.body.classList.remove("system-crashed");
+      card.classList.remove("crashed-card", "impact-shake");
+    }
+
+    function formatBinary32(num) {
+      // Convert signed 32-bit int to 32-character binary string
+      const bin = (num >>> 0).toString(2).padStart(32, '0');
+      const signBit = bin[0];
+      const rest = bin.slice(1);
+      // Group into bytes for readability
+      const formattedRest = `${rest.slice(0, 7)} ${rest.slice(7, 15)} ${rest.slice(15, 23)} ${rest.slice(23, 31)}`;
+      const flippedClass = signBit === '1' ? 'flipped' : '';
+      return `<span class="sign-bit ${flippedClass}">${signBit}</span>${formattedRest}`;
     }
 
     function update() {
@@ -122,23 +260,24 @@
       const diffMs = targetMs - nowMs;
       
       const elElapsed = document.getElementById("elapsed");
+      const elBinary = document.getElementById("binary-display");
       const elSystemDate = document.getElementById("system-date");
       const elStatus = document.getElementById("status");
       const elCounter = document.getElementById("counter");
+      const elTitle = document.getElementById("title");
 
-      // Calculate actual elapsed seconds since 1970
       const actualSeconds = Math.floor(nowMs / 1000);
-      
-      // Simulate 32-bit signed integer wrap-around using bitwise OR 0
       const signed32BitSeconds = actualSeconds | 0;
       
       elElapsed.textContent = signed32BitSeconds.toLocaleString();
+      elBinary.innerHTML = formatBinary32(signed32BitSeconds);
 
-      // Calculate the date the 32-bit system thinks it is
       const perceivedDate = new Date(signed32BitSeconds * 1000);
       elSystemDate.textContent = perceivedDate.toUTCString();
 
       if (diffMs <= 0) {
+        triggerCrashEffects();
+
         const elapsedMs = Math.abs(diffMs);
         const totalSeconds = Math.floor(elapsedMs / 1000);
         const days = Math.floor(totalSeconds / 86400);
@@ -146,9 +285,12 @@
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
 
-        elElapsed.classList.add("overflowed");
-        elSystemDate.classList.add("overflowed");
-        elStatus.textContent = "CRITICAL ERROR: 32-bit Unix time has overflowed!";
+        elElapsed.classList.add("overflowed", "glitch-text");
+        elSystemDate.classList.add("overflowed", "glitch-text");
+        elTitle.classList.add("glitch-text");
+        elStatus.classList.add("overflowed");
+        
+        elStatus.textContent = "CRITICAL ERROR: SIGNED INTEGER OVERFLOW!";
         elCounter.textContent = `T+ ${days}d ${hours}h ${minutes}m ${seconds}s`;
       } else {
         const totalSeconds = Math.floor(diffMs / 1000);
@@ -157,17 +299,20 @@
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
 
-        elElapsed.classList.remove("overflowed");
-        elSystemDate.classList.remove("overflowed");
+        elElapsed.classList.remove("overflowed", "glitch-text");
+        elSystemDate.classList.remove("overflowed", "glitch-text");
+        elTitle.classList.remove("glitch-text");
+        elStatus.classList.remove("overflowed");
+
         elStatus.textContent = isSimulating 
-          ? "SIMULATION ACTIVE — Time remaining until overflow:" 
+          ? "SIMULATION ACTIVE — Overflow imminent:" 
           : "Time remaining until overflow:";
         elCounter.textContent = `T- ${days}d ${hours}h ${minutes}m ${seconds}s`;
       }
     }
 
     update();
-    setInterval(update, 250); // Run 4x a second for smoother simulation transitions
+    setInterval(update, 100); // 10fps for crisp countdown and instant crash trigger
   </script>
 </body>
 </html>
