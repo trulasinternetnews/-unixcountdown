@@ -13,10 +13,19 @@
       color: #f9fafb;
       text-align: center;
     }
-    .card { padding: 2rem; max-width: 520px; }
+    .card { padding: 2rem; max-width: 600px; }
     .counter { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; }
     .sub { color: #9ca3af; font-size: 0.95rem; }
     .elapsed { color: #38bdf8; font-family: monospace; font-size: 1.1rem; }
+    .explanation {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #1f2937;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: #d1d5db;
+      text-align: left;
+    }
   </style>
 </head>
 <body>
@@ -27,7 +36,11 @@
     <hr style="border: 0; border-top: 1px solid #374151; margin: 1.5rem 0;">
     <div id="status" class="sub"></div>
     <div id="counter" class="counter">Calculating...</div>
-    <p class="sub" style="margin-top: 2rem;">Cutoff: Jan 19, 2038, 03:14:07 UTC</p>
+    <p class="sub" style="margin-top: 1.5rem;">Cutoff: Jan 19, 2038, 03:14:07 UTC</p>
+    
+    <div class="explanation">
+      <strong>What happens at the limit?</strong> When the 32-bit counter maxes out, it wraps around to a negative number. This causes unpatched systems to misinterpret the date as December 13, 1901, at 20:45:52 UTC. This integer overflow can lead to critical software crashes and data errors.
+    </div>
   </div>
 
   <script>
@@ -43,7 +56,6 @@
       const elStatus = document.getElementById("status");
       const elCounter = document.getElementById("counter");
 
-      // Calculate total seconds elapsed since 1970
       const totalElapsedSeconds = Math.floor((nowMs - EPOCH_MS) / 1000);
       elElapsed.textContent = totalElapsedSeconds.toLocaleString();
 
