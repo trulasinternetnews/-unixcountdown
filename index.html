@@ -1,58 +1,76 @@
 <!DOCTYPE html>
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body {
-            font-family: system-ui, -apple-system, sans-serif;
-            display: grid;
-            place-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background: #111827;
-            color: #f9fafb;
-            text-align: center;
-          }
-          .card { padding: 2rem; max-width: 520px; }
-          .countdown { font-size: 1.5rem; font-weight: 700; margin: 1rem 0; }
-          .sub { color: #9ca3af; font-size: 0.95rem; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h1>32-Bit Unix Time Remaining</h1>
-          <div id="countdown" class="countdown">Calculating...</div>
-          <div id="seconds" class="sub"></div>
-          <p class="sub">Cutoff: Jan 19, 2038, 03:14:07 UTC</p>
-        </div>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #111827;
+      color: #f9fafb;
+      text-align: center;
+    }
+    .card { padding: 2rem; max-width: 520px; }
+    .counter { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; }
+    .sub { color: #9ca3af; font-size: 0.95rem; }
+    .elapsed { color: #38bdf8; font-family: monospace; font-size: 1.1rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>32-Bit Unix Time Tracker</h1>
+    <div class="sub">Total Seconds Elapsed Since 1970:</div>
+    <div id="elapsed" class="counter elapsed">Calculating...</div>
+    <hr style="border: 0; border-top: 1px solid #374151; margin: 1.5rem 0;">
+    <div id="status" class="sub"></div>
+    <div id="counter" class="counter">Calculating...</div>
+    <p class="sub" style="margin-top: 2rem;">Cutoff: Jan 19, 2038, 03:14:07 UTC</p>
+  </div>
 
-        <script>
-          const Y2K38_EPOCH_SECONDS = 2147483647;
-          const targetMs = Y2K38_EPOCH_SECONDS * 1000;
+  <script>
+    const EPOCH_MS = 0; // Jan 1, 1970
+    const Y2K38_EPOCH_SECONDS = 2147483647;
+    const targetMs = Y2K38_EPOCH_SECONDS * 1000;
 
-          function update() {
-            const diffMs = targetMs - Date.now();
-            const el = document.getElementById("countdown");
-            const secEl = document.getElementById("seconds");
+    function update() {
+      const nowMs = Date.now();
+      const diffMs = targetMs - nowMs;
+      
+      const elElapsed = document.getElementById("elapsed");
+      const elStatus = document.getElementById("status");
+      const elCounter = document.getElementById("counter");
 
-            if (diffMs <= 0) {
-              el.textContent = "32-bit Unix time has already overflowed!";
-              secEl.textContent = "";
-              return;
-            }
+      // Calculate total seconds elapsed since 1970
+      const totalElapsedSeconds = Math.floor((nowMs - EPOCH_MS) / 1000);
+      elElapsed.textContent = totalElapsedSeconds.toLocaleString();
 
-            const totalSeconds = Math.floor(diffMs / 1000);
-            const days = Math.floor(totalSeconds / 86400);
-            const hours = Math.floor((totalSeconds % 86400) / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = totalSeconds % 60;
+      if (diffMs <= 0) {
+        const elapsedMs = Math.abs(diffMs);
+        const totalSeconds = Math.floor(elapsedMs / 1000);
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
 
-            el.textContent = \`\${days}d \${hours}h \${minutes}m \${seconds}s\`;
-            secEl.textContent = \`\${totalSeconds.toLocaleString()} total seconds left\`;
-          }
+        elStatus.textContent = "32-bit Unix time has overflowed!";
+        elCounter.textContent = `T+ ${days}d ${hours}h ${minutes}m ${seconds}s`;
+      } else {
+        const totalSeconds = Math.floor(diffMs / 1000);
+        const days = Math.floor(totalSeconds / 86400);
+        const hours = Math.floor((totalSeconds % 86400) / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
 
-          update();
-          setInterval(update, 1000);
-        </script>
-      </body>
-    </html>
+        elStatus.textContent = "Time remaining until overflow:";
+        elCounter.textContent = `T- ${days}d ${hours}h ${minutes}m ${seconds}s`;
+      }
+    }
+
+    update();
+    setInterval(update, 1000);
+  </script>
+</body>
+</html>
