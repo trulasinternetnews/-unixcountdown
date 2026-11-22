@@ -13,7 +13,28 @@
       color: #f9fafb;
       text-align: center;
       overflow-x: hidden;
-      transition: background-color 0.2s;
+      position: relative;
+      transition: background-color 0.5s ease;
+    }
+
+    /* Sunset & Temporal Warp Sky Layers */
+    .sky-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+      z-index: 0;
+    }
+
+    /* Warm Sunset Gradient during the 10s approach to 2038 */
+    .sky-sunset {
+      background: radial-gradient(circle at 50% 85%, #f97316 0%, #b91c1c 35%, #4c1d95 75%, #0f172a 100%);
+    }
+
+    /* Cool Temporal Warp Gradient during the 10s return from 1901 */
+    .sky-return {
+      background: radial-gradient(circle at 50% 20%, #38bdf8 0%, #1d4ed8 45%, #0f172a 90%);
     }
 
     /* Subtle CRT scanline overlay during overflow */
@@ -36,21 +57,26 @@
       padding: 2rem; 
       max-width: 620px; 
       position: relative;
+      z-index: 2;
       border-radius: 12px;
-      transition: box-shadow 0.3s, border 0.3s;
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: box-shadow 0.3s, border 0.3s, background 0.3s;
     }
 
     .card.crashed-card {
-      border: 1px solid rgba(239, 68, 68, 0.5);
-      box-shadow: 0 0 35px rgba(239, 68, 68, 0.2);
-      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid rgba(239, 68, 68, 0.6);
+      box-shadow: 0 0 40px rgba(239, 68, 68, 0.25);
+      background: rgba(17, 24, 39, 0.94);
     }
 
     .counter { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; font-variant-numeric: tabular-nums; }
     .sub { color: #9ca3af; font-size: 0.95rem; }
     .elapsed { color: #38bdf8; font-family: monospace; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
     .overflowed { color: #ef4444 !important; }
-    .warping { color: #facc15 !important; }
+    .warping-sunset { color: #fb923c !important; }
+    .warping-return { color: #38bdf8 !important; }
     
     /* 32-Bit Binary Register Display */
     .binary-box {
@@ -76,7 +102,7 @@
       background: rgba(239, 68, 68, 0.25);
     }
 
-    /* 10-Second Run Progress Bar (only shown when simulation button is clicked) */
+    /* 10-Second Run Progress Bar */
     .sim-progress-wrap {
       display: none;
       margin: 1rem auto 0;
@@ -88,7 +114,7 @@
       justify-content: space-between;
       font-family: monospace;
       font-size: 0.8rem;
-      color: #facc15;
+      color: #fb923c;
       margin-bottom: 0.35rem;
     }
     .sim-progress-track {
@@ -102,7 +128,7 @@
     .sim-progress-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #38bdf8, #facc15, #ef4444);
+      background: linear-gradient(90deg, #38bdf8, #f97316, #ef4444);
       transition: width 0.05s linear;
     }
 
@@ -118,17 +144,25 @@
       background: #2563eb;
       color: white;
       border: none;
-      padding: 0.6rem 1.1rem;
+      padding: 0.65rem 1.2rem;
       border-radius: 6px;
       font-weight: 600;
       cursor: pointer;
       font-size: 0.9rem;
-      transition: background 0.15s, transform 0.1s;
+      transition: background 0.15s, transform 0.1s, opacity 0.2s;
     }
-    button:hover { background: #1d4ed8; }
-    button:active { transform: scale(0.97); }
-    button.secondary { background: #374151; }
-    button.secondary:hover { background: #4b5563; }
+    button:hover:not(:disabled) { background: #1d4ed8; }
+    button:active:not(:disabled) { transform: scale(0.97); }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(0.4);
+    }
+    button.return-btn {
+      background: #0284c7;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
+    }
+    button.return-btn:hover:not(:disabled) { background: #0369a1; }
 
     .sim-date {
       font-family: monospace;
@@ -143,7 +177,7 @@
     .explanation {
       margin-top: 2rem;
       padding: 1rem;
-      background: #1f2937;
+      background: rgba(31, 41, 55, 0.85);
       border-radius: 8px;
       font-size: 0.85rem;
       color: #d1d5db;
@@ -191,6 +225,10 @@
   </style>
 </head>
 <body>
+  <!-- Atmospheric Sky Layers -->
+  <div id="sky-sunset" class="sky-layer sky-sunset"></div>
+  <div id="sky-return" class="sky-layer sky-return"></div>
+
   <div id="main-card" class="card">
     <h1 id="title">32-Bit Unix Time Tracker</h1>
     <div class="sub">Signed 32-Bit Integer Value (Seconds):</div>
@@ -206,14 +244,14 @@
     </div>
 
     <div class="controls">
-      <button id="btn-sim" onclick="startSimulation()">Simulate Overflow (10s)</button>
-      <button id="btn-reset" class="secondary" onclick="resetSimulation()" style="display: none;">Reset to Live Time</button>
+      <button id="btn-sim" onclick="startForwardSimulation()">Simulate Overflow (10s)</button>
+      <button id="btn-return" class="return-btn" onclick="startReturnSimulation()" style="display: none;">Time-Travel Back to Present (10s)</button>
     </div>
 
     <div id="sim-progress-wrap" class="sim-progress-wrap">
-      <div class="sim-progress-meta">
+      <div class="sim-progress-meta" id="sim-progress-meta">
         <span id="sim-timer-label">Sim Run: 0.0s / 10.0s</span>
-        <span id="sim-speed-label">Speed: 1x</span>
+        <span id="sim-speed-label">Rate: 1x</span>
       </div>
       <div class="sim-progress-track">
         <div id="sim-progress-fill" class="sim-progress-fill"></div>
@@ -233,48 +271,71 @@
   <script>
     const Y2K38_EPOCH_SECONDS = 2147483647;
     const targetMs = Y2K38_EPOCH_SECONDS * 1000;
+    const DURATION_MS = 10000; // 10 seconds for both forward warp and 1901 return
 
-    // Takes 10,000 ms (10 seconds) from clicking Simulate Overflow to reach targetMs
-    const DURATION_MS = 10000;
-
-    let isSimulating = false;
-    let simStartRealMs = 0;
-    let simStartVirtualMs = 0;
+    // Modes: 'live' | 'forward_warp' | 'overflowed' | 'return_warp'
+    let mode = 'live';
+    let animStartRealMs = 0;
+    let animStartVirtualMs = 0;
     let hasTriggeredCrash = false;
 
-    function startSimulation() {
-      isSimulating = true;
+    const btnSim = document.getElementById("btn-sim");
+    const btnReturn = document.getElementById("btn-return");
+    const progressWrap = document.getElementById("sim-progress-wrap");
+    const progressFill = document.getElementById("sim-progress-fill");
+    const progressMeta = document.getElementById("sim-progress-meta");
+    const skySunset = document.getElementById("sky-sunset");
+    const skyReturn = document.getElementById("sky-return");
+
+    function startForwardSimulation() {
+      if (mode === 'forward_warp' || mode === 'return_warp') return;
+
+      mode = 'forward_warp';
       hasTriggeredCrash = false;
-      simStartRealMs = performance.now();
-      simStartVirtualMs = Date.now();
+      animStartRealMs = performance.now();
+      animStartVirtualMs = Date.now();
 
       clearCrashEffects();
-      document.getElementById("btn-sim").textContent = "Restart Simulation (10s)";
-      document.getElementById("btn-reset").style.display = "inline-block";
-      document.getElementById("sim-progress-wrap").style.display = "block";
+      skyReturn.style.opacity = "0";
+      skySunset.style.opacity = "0.15";
+
+      // Block buttons until the 10-second loading/warp completes
+      btnSim.disabled = true;
+      btnSim.textContent = "Simulating Sunset to 2038...";
+      btnReturn.style.display = "none";
+      btnReturn.disabled = true;
+
+      progressWrap.style.display = "block";
+      progressMeta.style.color = "#fb923c";
+      progressFill.style.background = "linear-gradient(90deg, #38bdf8, #f97316, #ef4444)";
     }
 
-    function resetSimulation() {
-      isSimulating = false;
+    function startReturnSimulation() {
+      if (mode !== 'overflowed') return;
+
+      const nowPerf = performance.now();
+      const elapsedSinceOverflow = nowPerf - (animStartRealMs + DURATION_MS);
+      const currentVirtualMs = targetMs + elapsedSinceOverflow;
+      const currentSignedSec = Math.floor(currentVirtualMs / 1000) | 0;
+
+      mode = 'return_warp';
       hasTriggeredCrash = false;
+      animStartRealMs = nowPerf;
+      // Start from the current 1901 perceived timestamp in milliseconds
+      animStartVirtualMs = currentSignedSec * 1000;
 
       clearCrashEffects();
-      document.getElementById("btn-sim").textContent = "Simulate Overflow (10s)";
-      document.getElementById("btn-reset").style.display = "none";
-      document.getElementById("sim-progress-wrap").style.display = "none";
-    }
+      skySunset.style.opacity = "0";
+      skyReturn.style.opacity = "0.85";
 
-    function getSimulatedNowMs(elapsedReal) {
-      if (!isSimulating) {
-        return Date.now();
-      }
+      // Block button until the 10-second return journey completes
+      btnReturn.disabled = true;
+      btnReturn.textContent = "Returning from 1901...";
+      btnSim.style.display = "none";
 
-      if (elapsedReal < DURATION_MS) {
-        const progress = elapsedReal / DURATION_MS;
-        return simStartVirtualMs + (targetMs - simStartVirtualMs) * progress;
-      }
-
-      return targetMs + (elapsedReal - DURATION_MS);
+      progressWrap.style.display = "block";
+      progressMeta.style.color = "#38bdf8";
+      progressFill.style.background = "linear-gradient(90deg, #ef4444, #8b5cf6, #38bdf8)";
     }
 
     function triggerCrashEffects() {
@@ -284,6 +345,12 @@
       const card = document.getElementById("main-card");
       document.body.classList.add("system-crashed");
       card.classList.add("crashed-card", "impact-shake");
+
+      // Unlock the 1901 -> Present return button once loading completes
+      btnSim.style.display = "none";
+      btnReturn.style.display = "inline-block";
+      btnReturn.disabled = false;
+      btnReturn.textContent = "Time-Travel Back to Present (10s)";
 
       setTimeout(() => {
         card.classList.remove("impact-shake");
@@ -306,11 +373,66 @@
     }
 
     function animate(nowPerf) {
-      const elapsedReal = isSimulating ? (nowPerf - simStartRealMs) : 0;
-      const nowMs = getSimulatedNowMs(elapsedReal);
-      const diffMs = targetMs - nowMs;
-      const isWarping = isSimulating && elapsedReal < DURATION_MS;
-      
+      const elapsedReal = nowPerf - animStartRealMs;
+      let virtualMs = Date.now();
+      let isOverflowState = false;
+
+      if (mode === 'live') {
+        virtualMs = Date.now();
+      } else if (mode === 'forward_warp') {
+        const progress = Math.min(elapsedReal / DURATION_MS, 1);
+        virtualMs = animStartVirtualMs + (targetMs - animStartVirtualMs) * progress;
+
+        // Gradually intensify the sunset sky as we approach 2038
+        skySunset.style.opacity = (0.15 + progress * 0.75).toFixed(2);
+
+        const clampedSec = Math.min(elapsedReal / 1000, 10).toFixed(1);
+        const rate = Math.round(((targetMs - animStartVirtualMs) / 1000) / 10);
+        document.getElementById("sim-timer-label").textContent = `Sunset Warp: ${clampedSec}s / 10.0s`;
+        document.getElementById("sim-speed-label").textContent = `Rate: ~${rate.toLocaleString()}x`;
+        progressFill.style.width = `${progress * 100}%`;
+
+        if (progress >= 1) {
+          mode = 'overflowed';
+          virtualMs = targetMs;
+        }
+      } else if (mode === 'overflowed') {
+        virtualMs = targetMs + (elapsedReal - DURATION_MS);
+        isOverflowState = true;
+      } else if (mode === 'return_warp') {
+        const progress = Math.min(elapsedReal / DURATION_MS, 1);
+        // Smooth ease-in-out curve flying from 1901 back to exact current live time
+        const eased = progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+        const liveTargetMs = Date.now();
+        virtualMs = animStartVirtualMs + (liveTargetMs - animStartVirtualMs) * eased;
+
+        // Fade the cool temporal sky as we arrive back in the present
+        skyReturn.style.opacity = (0.9 * (1 - progress * 0.7)).toFixed(2);
+
+        const clampedSec = Math.min(elapsedReal / 1000, 10).toFixed(1);
+        const totalReturnSec = Math.round((liveTargetMs - animStartVirtualMs) / 1000);
+        const rate = Math.round(totalReturnSec / 10);
+        document.getElementById("sim-timer-label").textContent = `Temporal Return: ${clampedSec}s / 10.0s`;
+        document.getElementById("sim-speed-label").textContent = `Rate: ~${rate.toLocaleString()}x`;
+        progressFill.style.width = `${progress * 100}%`;
+
+        if (progress >= 1) {
+          // Arrived back at live time: unlock controls & hide progress bar
+          mode = 'live';
+          virtualMs = Date.now();
+          skyReturn.style.opacity = "0";
+          progressWrap.style.display = "none";
+
+          btnReturn.style.display = "none";
+          btnSim.style.display = "inline-block";
+          btnSim.disabled = false;
+          btnSim.textContent = "Simulate Overflow (10s)";
+        }
+      }
+
       const elElapsed = document.getElementById("elapsed");
       const elBinary = document.getElementById("binary-display");
       const elSystemDate = document.getElementById("system-date");
@@ -318,29 +440,19 @@
       const elCounter = document.getElementById("counter");
       const elTitle = document.getElementById("title");
 
-      if (isSimulating) {
-        const clampedSec = Math.min(elapsedReal / 1000, DURATION_MS / 1000).toFixed(1);
-        const pct = Math.min((elapsedReal / DURATION_MS) * 100, 100);
-        const totalDistanceSec = Math.max(0, (targetMs - simStartVirtualMs) / 1000);
-        const rateMultiplier = isWarping ? Math.round(totalDistanceSec / (DURATION_MS / 1000)) : 1;
-
-        document.getElementById("sim-timer-label").textContent = `Sim Run: ${clampedSec}s / 10.0s`;
-        document.getElementById("sim-speed-label").textContent = isWarping
-          ? `Rate: ~${rateMultiplier.toLocaleString()}x`
-          : "Rate: 1x (Overflowed)";
-        document.getElementById("sim-progress-fill").style.width = `${pct}%`;
-      }
-
-      const actualSeconds = Math.floor(nowMs / 1000);
-      const signed32BitSeconds = actualSeconds | 0;
+      const actualSeconds = Math.floor(virtualMs / 1000);
+      // During return_warp, show the true continuous timeline climbing from -2.14B (1901) back up to +1.79B (2026)
+      const displaySeconds = (mode === 'return_warp') ? actualSeconds : (actualSeconds | 0);
       
-      elElapsed.textContent = signed32BitSeconds.toLocaleString();
-      elBinary.innerHTML = formatBinary32(signed32BitSeconds);
+      elElapsed.textContent = displaySeconds.toLocaleString();
+      elBinary.innerHTML = formatBinary32(displaySeconds);
 
-      const perceivedDate = new Date(signed32BitSeconds * 1000);
+      const perceivedDate = new Date(displaySeconds * 1000);
       elSystemDate.textContent = perceivedDate.toUTCString();
 
-      if (diffMs <= 0) {
+      const diffMs = targetMs - virtualMs;
+
+      if (mode === 'overflowed' || (mode !== 'return_warp' && diffMs <= 0)) {
         triggerCrashEffects();
 
         const elapsedMs = Math.abs(diffMs);
@@ -350,7 +462,7 @@
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
 
-        elElapsed.classList.remove("warping");
+        elElapsed.classList.remove("warping-sunset", "warping-return");
         elElapsed.classList.add("overflowed", "glitch-text");
         elSystemDate.classList.add("overflowed", "glitch-text");
         elTitle.classList.add("glitch-text");
@@ -359,20 +471,23 @@
         elStatus.textContent = "CRITICAL ERROR: SIGNED INTEGER OVERFLOW!";
         elCounter.textContent = `T+ ${days}d ${hours}h ${minutes}m ${seconds}s`;
       } else {
-        const totalSeconds = Math.floor(diffMs / 1000);
+        const totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
         const days = Math.floor(totalSeconds / 86400);
         const hours = Math.floor((totalSeconds % 86400) / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
         const seconds = totalSeconds % 60;
 
-        elElapsed.classList.remove("overflowed", "glitch-text", "warping");
+        elElapsed.classList.remove("overflowed", "glitch-text", "warping-sunset", "warping-return");
         elSystemDate.classList.remove("overflowed", "glitch-text");
         elTitle.classList.remove("glitch-text");
         elStatus.classList.remove("overflowed");
 
-        if (isWarping) {
-          elElapsed.classList.add("warping");
-          elStatus.textContent = "SIMULATION ACTIVE — 10s speed-up to limit...";
+        if (mode === 'forward_warp') {
+          elElapsed.classList.add("warping-sunset");
+          elStatus.textContent = "SUNSET OF 32-BIT TIME — Approaching 2038 limit...";
+        } else if (mode === 'return_warp') {
+          elElapsed.classList.add("warping-return");
+          elStatus.textContent = "TEMPORAL RECOVERY — Returning from 1901 to Present...";
         } else {
           elStatus.textContent = "Time remaining until overflow:";
         }
