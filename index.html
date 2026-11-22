@@ -59,8 +59,7 @@
       position: relative;
       z-index: 2;
       border-radius: 12px;
-      background: rgba(17, 24, 39, 0.86);
-      backdrop-filter: blur(8px);
+      background: rgba(17, 24, 39, 0.92);
       border: 1px solid rgba(255, 255, 255, 0.08);
       transition: box-shadow 0.3s, border 0.3s, background 0.3s;
     }
@@ -68,7 +67,7 @@
     .card.crashed-card {
       border: 1px solid rgba(239, 68, 68, 0.6);
       box-shadow: 0 0 40px rgba(239, 68, 68, 0.25);
-      background: rgba(17, 24, 39, 0.94);
+      background: rgba(17, 24, 39, 0.96);
     }
 
     .counter { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; font-variant-numeric: tabular-nums; }
@@ -181,6 +180,23 @@
       text-align: left;
     }
 
+    #error-banner {
+      display: none;
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      background: #7f1d1d;
+      color: #fef2f2;
+      border: 1px solid #ef4444;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      z-index: 9999;
+      text-align: left;
+    }
+
     /* --- GLITCH ANIMATIONS --- */
     @keyframes crash-impact {
       0% { transform: translate(0, 0) skew(0deg); filter: invert(0); }
@@ -222,6 +238,7 @@
   </style>
 </head>
 <body>
+  <div id="error-banner"></div>
   <div id="sky-sunset" class="sky-layer sky-sunset"></div>
   <div id="sky-return" class="sky-layer sky-return"></div>
 
@@ -265,6 +282,15 @@
   </div>
 
   <script>
+    window.onerror = function (msg, url, line, col, err) {
+      var banner = document.getElementById("error-banner");
+      if (banner) {
+        banner.style.display = "block";
+        banner.textContent = "JS Error (line " + line + "): " + msg;
+      }
+      return false;
+    };
+
     (function () {
       const Y2K38_EPOCH_SECONDS = 2147483647;
       const NEGATIVE_32BIT_SECONDS = -2147483648;
@@ -364,4 +390,159 @@
           const bin = (num >>> 0).toString(2).padStart(32, '0');
           const signBit = bin[0];
           const rest = bin.slice(1);
-          const formattedRest = rest.slice(0, 7) + " " + rest.slice(7, 15) + " " + rest.slice(
+          const formattedRest = rest.slice(0, 7) + " " + rest.slice(7, 15) + " " + rest.slice(15, 23) + " " + rest.slice(23, 31);
+          const flippedClass = signBit === '1' ? 'flipped' : '';
+          return '<span class="sign-bit ' + flippedClass + '">' + signBit + '</span>' + formattedRest;
+        }
+
+        function animate(nowPerf) {
+          const currentPerf = typeof nowPerf === "number" ? nowPerf : performance.now();
+          const elapsedReal = currentPerf - animStartRealMs;
+          let virtualMs = Date.now();
+
+          if (mode === 'live') {
+            virtualMs = Date.now();
+          } else if (mode === 'forward_warp') {
+            const progress = Math.min(elapsedReal / DURATION_MS, 1);
+            virtualMs = animStartVirtualMs + (targetMs - animStartVirtualMs) * progress;
+
+            skySunset.style.opacity = (0.2 + progress * 0.7).toFixed(2);
+
+            const clampedSec = Math.min(elapsedReal / 1000, 10).toFixed(1);
+            const rate = Math.round(((targetMs - animStartVirtualMs) / 1000) / 10);
+            document.getElementById("sim-timer-label").textContent = "Sunset Warp: " + clampedSec + "s / 10.0s";
+            document.getElementById("sim-speed-label").textContent = "Rate: ~" + rate.toLocaleString() + "x";
+            progressFill.style.width = (progress * 100) + "%";
+
+            if (progress >= 1) {
+              mode = 'overflowed';
+              virtualMs = targetMs;
+            }
+          } else if (mode === 'overflowed') {
+            virtualMs = targetMs + (elapsedReal - DURATION_MS);
+          } else if (mode === 'return_warp') {
+            const TOTAL_RETURN_MS = 30000;
+            const EPOCH_PRE_MS = -5000;
+            const EPOCH_POST_MS = 5000;
+            const liveNowMs = Date.now();
+            const totalProgress = Math.min(elapsedReal / TOTAL_RETURN_MS, 1);
+            const clampedSec = Math.min(elapsedReal / 1000, 30).toFixed(1);
+
+            let rateLabel = "";
+            if (!(elapsedReal >= 10000)) {
+              const leg1Progress = elapsedReal / 10000;
+              virtualMs = negativeLimitMs + (EPOCH_PRE_MS - negativeLimitMs) * leg1Progress;
+              const rate = Math.round(((EPOCH_PRE_MS - negativeLimitMs) / 1000) / 10);
+              rateLabel = "Rate: ~" + rate.toLocaleString() + "x";
+            } else if (!(elapsedReal >= 20000)) {
+              const epochElapsed = elapsedReal - 10000;
+              virtualMs = EPOCH_PRE_MS + epochElapsed;
+              rateLabel = "Rate: 1x (UNIX EPOCH!)";
+            } else {
+              const leg3Progress = Math.min((elapsedReal - 20000) / 10000, 1);
+              virtualMs = EPOCH_POST_MS + (liveNowMs - EPOCH_POST_MS) * leg3Progress;
+              const rate = Math.round(((liveNowMs - EPOCH_POST_MS) / 1000) / 10);
+              rateLabel = "Rate: ~" + rate.toLocaleString() + "x";
+            }
+
+            skyReturn.style.opacity = (0.85 * (1 - totalProgress * 0.75)).toFixed(2);
+            document.getElementById("sim-timer-label").textContent = "Return to Present: " + clampedSec + "s / 30.0s";
+            document.getElementById("sim-speed-label").textContent = rateLabel;
+            progressFill.style.width = (totalProgress * 100) + "%";
+
+            if (elapsedReal >= TOTAL_RETURN_MS) {
+              mode = 'live';
+              virtualMs = Date.now();
+              skyReturn.style.opacity = "0";
+              progressWrap.style.display = "none";
+
+              btnSim.style.display = "inline-block";
+              btnSim.disabled = false;
+              btnSim.textContent = "Simulate Overflow (10s)";
+
+              btnReset.style.display = "none";
+              btnReset.disabled = true;
+              btnReset.textContent = "Reset to Live Time";
+            }
+          }
+
+          const elElapsed = document.getElementById("elapsed");
+          const elBinary = document.getElementById("binary-display");
+          const elSystemDate = document.getElementById("system-date");
+          const elStatus = document.getElementById("status");
+          const elCounter = document.getElementById("counter");
+          const elTitle = document.getElementById("title");
+
+          const actualSeconds = Math.floor(virtualMs / 1000);
+          const displaySeconds = (mode === 'return_warp') ? actualSeconds : (actualSeconds | 0);
+          
+          elElapsed.textContent = displaySeconds.toLocaleString();
+          elBinary.innerHTML = formatBinary32(displaySeconds);
+
+          const perceivedDate = new Date(displaySeconds * 1000);
+          elSystemDate.textContent = perceivedDate.toUTCString();
+
+          const diffMs = targetMs - virtualMs;
+
+          if (mode === 'overflowed' || (mode !== 'return_warp' && !(diffMs > 0))) {
+            triggerCrashEffects();
+
+            const elapsedMs = Math.abs(diffMs);
+            const totalSeconds = Math.floor(elapsedMs / 1000);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            elElapsed.classList.remove("warping-sunset", "warping-return");
+            elElapsed.classList.add("overflowed", "glitch-text");
+            elSystemDate.classList.add("overflowed", "glitch-text");
+            elTitle.classList.add("glitch-text");
+            elStatus.classList.add("overflowed");
+            
+            elStatus.textContent = "CRITICAL ERROR: SIGNED INTEGER OVERFLOW!";
+            elCounter.textContent = "T+ " + days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+          } else {
+            const totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            elElapsed.classList.remove("overflowed", "glitch-text", "warping-sunset", "warping-return");
+            elSystemDate.classList.remove("overflowed", "glitch-text");
+            elTitle.classList.remove("glitch-text");
+            elStatus.classList.remove("overflowed");
+
+            if (mode === 'forward_warp') {
+              elElapsed.classList.add("warping-sunset");
+              elStatus.textContent = "SUNSET OF 32-BIT TIME — Speeding up to 2038 limit...";
+            } else if (mode === 'return_warp') {
+              elElapsed.classList.add("warping-return");
+              if (elapsedReal >= 10000 && !(elapsedReal >= 20000)) {
+                elStatus.textContent = "UNIX EPOCH REACHED (JAN 1, 1970 00:00:00 UTC) — Real-Time 1x!";
+              } else {
+                elStatus.textContent = "SPEEDING FROM NEGATIVE LIMIT TO PRESENT...";
+              }
+            } else {
+              elStatus.textContent = "Time remaining until overflow:";
+            }
+            
+            elCounter.textContent = "T- " + days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+          }
+
+          requestAnimationFrame(animate);
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
