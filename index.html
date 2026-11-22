@@ -17,13 +17,13 @@
       transition: background-color 0.5s ease;
     }
 
-    /* Sunset & Temporal Warp Sky Layers */
+    /* Sunset & Temporal Return Sky Layers */
     .sky-layer {
       position: fixed;
       inset: 0;
       pointer-events: none;
       opacity: 0;
-      transition: opacity 0.8s ease;
+      transition: opacity 0.6s ease;
       z-index: 0;
     }
 
@@ -32,9 +32,9 @@
       background: radial-gradient(circle at 50% 85%, #f97316 0%, #b91c1c 35%, #4c1d95 75%, #0f172a 100%);
     }
 
-    /* Cool Temporal Warp Gradient during the 10s return from 1901 */
+    /* Temporal Return Gradient during the 10s trip from negative integer to present */
     .sky-return {
-      background: radial-gradient(circle at 50% 20%, #38bdf8 0%, #1d4ed8 45%, #0f172a 90%);
+      background: radial-gradient(circle at 50% 25%, #38bdf8 0%, #2563eb 45%, #0f172a 90%);
     }
 
     /* Subtle CRT scanline overlay during overflow */
@@ -59,7 +59,7 @@
       position: relative;
       z-index: 2;
       border-radius: 12px;
-      background: rgba(17, 24, 39, 0.85);
+      background: rgba(17, 24, 39, 0.86);
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255, 255, 255, 0.08);
       transition: box-shadow 0.3s, border 0.3s, background 0.3s;
@@ -153,16 +153,18 @@
     }
     button:hover:not(:disabled) { background: #1d4ed8; }
     button:active:not(:disabled) { transform: scale(0.97); }
-    button:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-      filter: grayscale(0.4);
-    }
+    button.secondary { background: #374151; }
+    button.secondary:hover:not(:disabled) { background: #4b5563; }
     button.return-btn {
       background: #0284c7;
       box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
     }
     button.return-btn:hover:not(:disabled) { background: #0369a1; }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(0.4);
+    }
 
     .sim-date {
       font-family: monospace;
@@ -225,7 +227,6 @@
   </style>
 </head>
 <body>
-  <!-- Atmospheric Sky Layers -->
   <div id="sky-sunset" class="sky-layer sky-sunset"></div>
   <div id="sky-return" class="sky-layer sky-return"></div>
 
@@ -245,7 +246,8 @@
 
     <div class="controls">
       <button id="btn-sim" onclick="startForwardSimulation()">Simulate Overflow (10s)</button>
-      <button id="btn-return" class="return-btn" onclick="startReturnSimulation()" style="display: none;">Time-Travel Back to Present (10s)</button>
+      <button id="btn-return" class="return-btn" onclick="startReturnSimulation()" style="display: none;">Return From Negative Limit (10s)</button>
+      <button id="btn-reset" class="secondary" onclick="resetToLiveTime()" style="display: none;">Reset to Live Time</button>
     </div>
 
     <div id="sim-progress-wrap" class="sim-progress-wrap">
@@ -270,8 +272,10 @@
 
   <script>
     const Y2K38_EPOCH_SECONDS = 2147483647;
+    const NEGATIVE_32BIT_SECONDS = -2147483648;
     const targetMs = Y2K38_EPOCH_SECONDS * 1000;
-    const DURATION_MS = 10000; // 10 seconds for both forward warp and 1901 return
+    const negativeLimitMs = NEGATIVE_32BIT_SECONDS * 1000;
+    const DURATION_MS = 10000; // Always 10 seconds
 
     // Modes: 'live' | 'forward_warp' | 'overflowed' | 'return_warp'
     let mode = 'live';
@@ -281,6 +285,7 @@
 
     const btnSim = document.getElementById("btn-sim");
     const btnReturn = document.getElementById("btn-return");
+    const btnReset = document.getElementById("btn-reset");
     const progressWrap = document.getElementById("sim-progress-wrap");
     const progressFill = document.getElementById("sim-progress-fill");
     const progressMeta = document.getElementById("sim-progress-meta");
@@ -297,13 +302,15 @@
 
       clearCrashEffects();
       skyReturn.style.opacity = "0";
-      skySunset.style.opacity = "0.15";
+      skySunset.style.opacity = "0.2";
 
-      // Block buttons until the 10-second loading/warp completes
+      // Lock all simulation/reset controls while the 10s loading warp runs
       btnSim.disabled = true;
-      btnSim.textContent = "Simulating Sunset to 2038...";
+      btnSim.textContent = "Simulating Sunset (10s)...";
       btnReturn.style.display = "none";
       btnReturn.disabled = true;
+      btnReset.style.display = "inline-block";
+      btnReset.disabled = true;
 
       progressWrap.style.display = "block";
       progressMeta.style.color = "#fb923c";
@@ -313,29 +320,49 @@
     function startReturnSimulation() {
       if (mode !== 'overflowed') return;
 
-      const nowPerf = performance.now();
-      const elapsedSinceOverflow = nowPerf - (animStartRealMs + DURATION_MS);
-      const currentVirtualMs = targetMs + elapsedSinceOverflow;
-      const currentSignedSec = Math.floor(currentVirtualMs / 1000) | 0;
-
       mode = 'return_warp';
       hasTriggeredCrash = false;
-      animStartRealMs = nowPerf;
-      // Start from the current 1901 perceived timestamp in milliseconds
-      animStartVirtualMs = currentSignedSec * 1000;
+      animStartRealMs = performance.now();
+      // Start directly from the negative 32-bit integer limit (-2,147,483,648)
+      animStartVirtualMs = negativeLimitMs;
 
       clearCrashEffects();
       skySunset.style.opacity = "0";
       skyReturn.style.opacity = "0.85";
 
-      // Block button until the 10-second return journey completes
-      btnReturn.disabled = true;
-      btnReturn.textContent = "Returning from 1901...";
+      // Lock return and reset buttons while traveling back to current time over 10s
       btnSim.style.display = "none";
+      btnReturn.style.display = "inline-block";
+      btnReturn.disabled = true;
+      btnReturn.textContent = "Returning to Present (10s)...";
+      btnReset.style.display = "inline-block";
+      btnReset.disabled = true;
 
       progressWrap.style.display = "block";
       progressMeta.style.color = "#38bdf8";
-      progressFill.style.background = "linear-gradient(90deg, #ef4444, #8b5cf6, #38bdf8)";
+      progressFill.style.background = "linear-gradient(90deg, #ef4444, #6366f1, #38bdf8)";
+    }
+
+    function resetToLiveTime() {
+      // Only allowed when not actively loading/warping
+      if (mode === 'forward_warp' || mode === 'return_warp') return;
+
+      mode = 'live';
+      hasTriggeredCrash = false;
+      clearCrashEffects();
+      skySunset.style.opacity = "0";
+      skyReturn.style.opacity = "0";
+      progressWrap.style.display = "none";
+
+      btnSim.style.display = "inline-block";
+      btnSim.disabled = false;
+      btnSim.textContent = "Simulate Overflow (10s)";
+
+      btnReturn.style.display = "none";
+      btnReturn.disabled = true;
+
+      btnReset.style.display = "none";
+      btnReset.disabled = true;
     }
 
     function triggerCrashEffects() {
@@ -346,11 +373,13 @@
       document.body.classList.add("system-crashed");
       card.classList.add("crashed-card", "impact-shake");
 
-      // Unlock the 1901 -> Present return button once loading completes
+      // Loading complete: unlock the 10s return button and reset button
       btnSim.style.display = "none";
       btnReturn.style.display = "inline-block";
       btnReturn.disabled = false;
-      btnReturn.textContent = "Time-Travel Back to Present (10s)";
+      btnReturn.textContent = "Return From Negative Limit (10s)";
+      btnReset.style.display = "inline-block";
+      btnReset.disabled = false;
 
       setTimeout(() => {
         card.classList.remove("impact-shake");
@@ -375,7 +404,6 @@
     function animate(nowPerf) {
       const elapsedReal = nowPerf - animStartRealMs;
       let virtualMs = Date.now();
-      let isOverflowState = false;
 
       if (mode === 'live') {
         virtualMs = Date.now();
@@ -383,8 +411,8 @@
         const progress = Math.min(elapsedReal / DURATION_MS, 1);
         virtualMs = animStartVirtualMs + (targetMs - animStartVirtualMs) * progress;
 
-        // Gradually intensify the sunset sky as we approach 2038
-        skySunset.style.opacity = (0.15 + progress * 0.75).toFixed(2);
+        // Sunset gradient deepens as time races toward the 2038 cutoff
+        skySunset.style.opacity = (0.2 + progress * 0.7).toFixed(2);
 
         const clampedSec = Math.min(elapsedReal / 1000, 10).toFixed(1);
         const rate = Math.round(((targetMs - animStartVirtualMs) / 1000) / 10);
@@ -398,38 +426,37 @@
         }
       } else if (mode === 'overflowed') {
         virtualMs = targetMs + (elapsedReal - DURATION_MS);
-        isOverflowState = true;
       } else if (mode === 'return_warp') {
         const progress = Math.min(elapsedReal / DURATION_MS, 1);
-        // Smooth ease-in-out curve flying from 1901 back to exact current live time
-        const eased = progress < 0.5
-          ? 2 * progress * progress
-          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        const liveNowMs = Date.now();
+        // Linearly speed up from negative 32-bit limit (-2,147,483,648) to current time in 10s
+        virtualMs = negativeLimitMs + (liveNowMs - negativeLimitMs) * progress;
 
-        const liveTargetMs = Date.now();
-        virtualMs = animStartVirtualMs + (liveTargetMs - animStartVirtualMs) * eased;
-
-        // Fade the cool temporal sky as we arrive back in the present
-        skyReturn.style.opacity = (0.9 * (1 - progress * 0.7)).toFixed(2);
+        skyReturn.style.opacity = (0.85 * (1 - progress * 0.75)).toFixed(2);
 
         const clampedSec = Math.min(elapsedReal / 1000, 10).toFixed(1);
-        const totalReturnSec = Math.round((liveTargetMs - animStartVirtualMs) / 1000);
-        const rate = Math.round(totalReturnSec / 10);
-        document.getElementById("sim-timer-label").textContent = `Temporal Return: ${clampedSec}s / 10.0s`;
+        const totalSpanSec = Math.round((liveNowMs - negativeLimitMs) / 1000);
+        const rate = Math.round(totalSpanSec / 10);
+        document.getElementById("sim-timer-label").textContent = `Return to Present: ${clampedSec}s / 10.0s`;
         document.getElementById("sim-speed-label").textContent = `Rate: ~${rate.toLocaleString()}x`;
         progressFill.style.width = `${progress * 100}%`;
 
         if (progress >= 1) {
-          // Arrived back at live time: unlock controls & hide progress bar
+          // 10s return complete: unlock buttons and return to live present time
           mode = 'live';
           virtualMs = Date.now();
           skyReturn.style.opacity = "0";
           progressWrap.style.display = "none";
 
-          btnReturn.style.display = "none";
           btnSim.style.display = "inline-block";
           btnSim.disabled = false;
           btnSim.textContent = "Simulate Overflow (10s)";
+
+          btnReturn.style.display = "none";
+          btnReturn.disabled = true;
+
+          btnReset.style.display = "none";
+          btnReset.disabled = true;
         }
       }
 
@@ -441,7 +468,7 @@
       const elTitle = document.getElementById("title");
 
       const actualSeconds = Math.floor(virtualMs / 1000);
-      // During return_warp, show the true continuous timeline climbing from -2.14B (1901) back up to +1.79B (2026)
+      // Show continuous climbing seconds during return_warp from -2,147,483,648 to current time
       const displaySeconds = (mode === 'return_warp') ? actualSeconds : (actualSeconds | 0);
       
       elElapsed.textContent = displaySeconds.toLocaleString();
@@ -484,10 +511,10 @@
 
         if (mode === 'forward_warp') {
           elElapsed.classList.add("warping-sunset");
-          elStatus.textContent = "SUNSET OF 32-BIT TIME — Approaching 2038 limit...";
+          elStatus.textContent = "SUNSET OF 32-BIT TIME — Speeding up to 2038 limit...";
         } else if (mode === 'return_warp') {
           elElapsed.classList.add("warping-return");
-          elStatus.textContent = "TEMPORAL RECOVERY — Returning from 1901 to Present...";
+          elStatus.textContent = "SPEEDING FROM NEGATIVE LIMIT TO PRESENT (10s)...";
         } else {
           elStatus.textContent = "Time remaining until overflow:";
         }
