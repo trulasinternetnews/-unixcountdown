@@ -527,7 +527,75 @@
             } else {
               elStatus.textContent = "Time remaining until overflow:";
             }
-            
+            <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>32-Bit Unix Time Tracker</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #111827;
+      color: #f9fafb;
+      text-align: center;
+      overflow-x: hidden;
+      position: relative;
+      transition: background-color 0.5s ease;
+    }
+
+    /* Sunset & Temporal Return Sky Layers */
+    .sky-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      z-index: 0;
+    }
+
+    .sky-sunset {
+      background: radial-gradient(circle at 50% 85%, #f97316 0%, #b91c1c 35%, #4c1d95 75%, #0f172a 100%);
+    }
+
+    .sky-return {
+      background: radial-gradient(circle at 50% 25%, #38bdf8 0%, #2563eb 45%, #0f172a 90%);
+    }
+
+    /* Subtle CRT scanline overlay during overflow */
+    body.system-crashed::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .card { 
+      padding: 2rem; 
+      max-width: 620px; 
+      position: relative;
+      z-index: 2;
+      border-radius: 12px;
+      background: rgba(17, 24, 39, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: box-shadow 0.3s, border 0.3s, background 0.3s;
+    }
+
+    .card.crashed-card {
+      border: 1px solid rgba(239, 68, 68, 0.6);
+      box-shadow: 0 0 40px rgba(239,
             elCounter.textContent = "T- " + days + "d " + hours + "h " + minutes + "m " + seconds + "s";
           }
 
