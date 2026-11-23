@@ -19,7 +19,6 @@
       transition: background-color 0.5s ease;
     }
 
-    /* Sunset & Temporal Return Sky Layers */
     .sky-layer {
       position: fixed;
       inset: 0;
@@ -37,7 +36,6 @@
       background: radial-gradient(circle at 50% 25%, #38bdf8 0%, #2563eb 45%, #0f172a 90%);
     }
 
-    /* Subtle CRT scanline overlay during overflow */
     body.system-crashed::after {
       content: "";
       position: fixed;
@@ -97,7 +95,6 @@
     .warping-sunset { color: #fb923c !important; }
     .warping-return { color: #38bdf8 !important; }
     
-    /* 32-Bit Binary Register Display */
     .binary-box {
       font-family: monospace;
       font-size: 0.85rem;
@@ -118,4 +115,713 @@
     }
     .sign-bit.flipped {
       color: #ef4444;
-      background: rgba(239, 68, 68
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .sim-progress-wrap {
+      display: none;
+      margin: 1rem auto 0;
+      max-width: 440px;
+      text-align: left;
+    }
+    .sim-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #fb923c;
+      margin-bottom: 0.35rem;
+    }
+    .sim-progress-track {
+      width: 100%;
+      height: 8px;
+      background: #1f2937;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid #374151;
+    }
+    .sim-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #f97316, #ef4444);
+      transition: width 0.05s linear;
+    }
+
+    .controls {
+      margin: 1.25rem 0;
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 0.65rem 1.2rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.15s, transform 0.1s, opacity 0.2s;
+    }
+    button:hover:not(:disabled) { background: #1d4ed8; }
+    button:active:not(:disabled) { transform: scale(0.97); }
+    button.secondary { background: #374151; }
+    button.secondary:hover:not(:disabled) { background: #4b5563; }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(0.4);
+    }
+
+    .sim-date {
+      font-family: monospace;
+      background: #0f172a;
+      padding: 0.75rem;
+      border-radius: 6px;
+      margin-top: 0.75rem;
+      font-size: 0.92rem;
+      border: 1px solid #1e293b;
+      line-height: 1.55;
+    }
+
+    .explanation {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: rgba(31, 41, 55, 0.85);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: #d1d5db;
+      text-align: left;
+    }
+
+    #error-banner {
+      display: none;
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      background: #7f1d1d;
+      color: #fef2f2;
+      border: 1px solid #ef4444;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      z-index: 9999;
+      text-align: left;
+    }
+
+    @keyframes crash-impact {
+      0% { transform: translate(0, 0) skew(0deg); filter: invert(0); }
+      10% { transform: translate(-12px, 6px) skew(-8deg); filter: invert(0.8) hue-rotate(90deg); }
+      20% { transform: translate(12px, -6px) skew(8deg); }
+      30% { transform: translate(-8px, -4px) skew(-4deg); filter: invert(0); }
+      40% { transform: translate(8px, 4px) skew(4deg); }
+      50% { transform: translate(-4px, 2px); }
+      60% { transform: translate(4px, -2px); }
+      100% { transform: translate(0, 0) skew(0deg); }
+    }
+
+    .impact-shake {
+      animation: crash-impact 0.55s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    @keyframes text-glitch {
+      0%, 92%, 100% { text-shadow: none; transform: translate(0, 0); }
+      93% { text-shadow: -3px 0 #ef4444, 3px 0 #06b6d4; transform: translate(2px, -1px); }
+      95% { text-shadow: 3px 0 #ef4444, -3px 0 #06b6d4; transform: translate(-2px, 1px); }
+      97% { text-shadow: -2px 1px #ef4444, 2px -1px #06b6d4; transform: translate(1px, 0); }
+    }
+
+    .glitch-text {
+      animation: text-glitch 2.5s infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="error-banner"></div>
+  <div id="sky-sunset" class="sky-layer sky-sunset"></div>
+  <div id="sky-return" class="sky-layer sky-return"></div>
+
+  <div id="main-card" class="card">
+    <div class="settings-bar">
+      <label id="lang-label" for="lang-select">Language:</label>
+      <select id="lang-select">
+        <option value="en" selected>English</option>
+        <option value="ga">Gaeilge (Irish)</option>
+        <option value="es">Español</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+        <option value="ja">日本語</option>
+      </select>
+    </div>
+
+    <h1 id="title">32-Bit Unix Time Tracker</h1>
+    <div id="int-label" class="sub">Signed 32-Bit Integer Value (Seconds):</div>
+    <div id="elapsed" class="counter elapsed">Calculating...</div>
+    
+    <div class="binary-box">
+      <span id="binary-label" class="sub" style="font-size: 0.75rem; display: block; margin-bottom: 4px;">32-BIT BINARY REGISTER (SIGN BIT HIGHLIGHTED):</span>
+      <span id="binary-display">01111111 11111111 11111111 11111111</span>
+    </div>
+
+    <div class="sim-date">
+      <div><span id="local-clock-prefix">Local Clock</span> (<span id="tz-name">Local</span>): <strong id="local-date">Calculating...</strong></div>
+      <div style="margin-top: 4px; color: #38bdf8; font-size: 0.88rem;"><span id="gmt-clock-prefix">GMT Clock</span>: <strong id="gmt-date">Calculating...</strong></div>
+    </div>
+
+    <div class="controls">
+      <button id="btn-sim" type="button">Simulate Overflow (10s)</button>
+      <button id="btn-reset" class="secondary" type="button" style="display: none;">Reset to Live Time</button>
+    </div>
+
+    <div id="sim-progress-wrap" class="sim-progress-wrap">
+      <div class="sim-progress-meta" id="sim-progress-meta">
+        <span id="sim-timer-label">Sim Run: 0.0s / 10.0s</span>
+        <span id="sim-speed-label">Rate: 1x</span>
+      </div>
+      <div class="sim-progress-track">
+        <div id="sim-progress-fill" class="sim-progress-fill"></div>
+      </div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #374151; margin: 1.5rem 0;">
+    <div id="status" class="sub"></div>
+    <div id="counter" class="counter">Calculating...</div>
+    <p class="sub" style="margin-top: 1.5rem;">
+      <span id="cutoff-local-prefix">Cutoff (Local Time)</span>: <span id="cutoff-local">Jan 19, 2038, 03:14:07</span><br>
+      <span id="cutoff-gmt-prefix" style="font-size: 0.85rem;">Cutoff (GMT)</span>: <span id="cutoff-gmt" style="font-size: 0.85rem;">Tue, 19 Jan 2038, 03:14:07 GMT</span>
+    </p>
+    
+    <div id="explanation" class="explanation">
+      <strong>What happens at the limit?</strong> When the 32-bit counter maxes out, it wraps around to a negative number. This causes unpatched systems to misinterpret the date as December 13, 1901, at 20:45:52 GMT. This integer overflow can lead to critical software crashes and data errors. <em>Check your system properties to verify if your operating system is 32-bit or 64-bit to ensure you are protected.</em>
+    </div>
+  </div>
+
+  <script>
+    window.onerror = function (msg, url, line) {
+      var banner = document.getElementById("error-banner");
+      if (banner) {
+        banner.style.display = "block";
+        banner.textContent = "JS Error (line " + line + "): " + msg;
+      }
+      return false;
+    };
+
+    (function () {
+      const Y2K38_EPOCH_SECONDS = 2147483647;
+      const NEGATIVE_32BIT_SECONDS = -2147483648;
+      const targetMs = Y2K38_EPOCH_SECONDS * 1000;
+      const negativeLimitMs = NEGATIVE_32BIT_SECONDS * 1000;
+      const DURATION_MS = 10000;
+
+      const TRANSLATIONS = {
+        en: {
+          langLabel: "Language:",
+          title: "32-Bit Unix Time Tracker",
+          intLabel: "Signed 32-Bit Integer Value (Seconds):",
+          binaryLabel: "32-BIT BINARY REGISTER (SIGN BIT HIGHLIGHTED):",
+          localClock: "Local Clock",
+          gmtClock: "GMT Clock",
+          simBtn: "Simulate Overflow (10s)",
+          simActive: "Simulating Overflow (10s)...",
+          resetBtn: "Reset to Live Time",
+          resetLocked10: "Reset Locked (10s)",
+          returnActive: "Returning to Present (30s)...",
+          resetLocked30: "Reset Locked (30s)",
+          sunsetLabel: "Sunset Warp",
+          returnLabel: "Return to Present",
+          epochRate: "Rate: 1x (UNIX EPOCH!)",
+          ratePrefix: "Rate: ~",
+          statusLive: "Time remaining until overflow:",
+          statusSunset: "SUNSET OF 32-BIT TIME — Speeding up to 2038 limit...",
+          statusEpoch: "UNIX EPOCH REACHED (JAN 1, 1970 00:00:00 GMT) — Real-Time 1x!",
+          statusReturn: "SPEEDING FROM NEGATIVE LIMIT TO PRESENT...",
+          statusOverflow: "CRITICAL ERROR: SIGNED INTEGER OVERFLOW!",
+          cutoffLocal: "Cutoff (Local Time)",
+          cutoffGmt: "Cutoff (GMT)",
+          explanation: "<strong>What happens at the limit?</strong> When the 32-bit counter maxes out, it wraps around to a negative number. This causes unpatched systems to misinterpret the date as December 13, 1901, at 20:45:52 GMT. This integer overflow can lead to critical software crashes and data errors. <em>Check your system properties to verify if your operating system is 32-bit or 64-bit to ensure you are protected.</em>"
+        },
+        ga: {
+          langLabel: "Teanga:",
+          title: "Rianaitheoir Ama Unix 32-Giotán",
+          intLabel: "Luach Slánuimhreach Sínithe 32-Giotán (Soicindí):",
+          binaryLabel: "CLÁR DÉNÁRTHA 32-GHIOTÁN (GIOTÁN COMHARTHA AIBHSITHE):",
+          localClock: "Clog Áitiúil",
+          gmtClock: "Clog GMT",
+          simBtn: "Insamhail Cur Thar Maoil (10s)",
+          simActive: "Á Insamhail (10s)...",
+          resetBtn: "Fill ar Am Beo",
+          resetLocked10: "Athshocrú Faoi Ghlas (10s)",
+          returnActive: "Ag Fill ar an Lá atá Inniu Ann (30s)...",
+          resetLocked30: "Athshocrú Faoi Ghlas (30s)",
+          sunsetLabel: "Rith chun Teorann",
+          returnLabel: "Fill ar an Lá Inniu",
+          epochRate: "Luas: 1x (RÉ UNIX!)",
+          ratePrefix: "Luas: ~",
+          statusLive: "Am fágtha go dtí an cur thar maoil:",
+          statusSunset: "DEIREADH AMA 32-GHIOTÁN — Ag luasghéarú go 2038...",
+          statusEpoch: "RÉ UNIX BAINTE AMACH (1 EANÁIR 1970 00:00:00 GMT) — Fíor-Am 1x!",
+          statusReturn: "AG LUASGHÉARÚ ÓN TEORANN DHIÚLTACH GO dtí AN LÁ INNIU...",
+          statusOverflow: "EARRÁID CHRITICIÚIL: CUR THAR MAOIL SLÁNUIMHREACH!",
+          cutoffLocal: "Teorainn (Am Áitiúil)",
+          cutoffGmt: "Teorainn (GMT)",
+          explanation: "<strong>Cad a tharlaíonn ag an teorainn?</strong> Nuair a shroicheann an t-áireamhán 32-giotán a uasmhéid, casann sé go huimhir dhiúltach, rud a chuireann an dáta go 13 Nollaig 1901 ag 20:45:52 GMT ar chórais gan paiste. <em>Seiceáil an bhfuil do chóras 32-giotán nó 64-giotán.</em>"
+        },
+        es: {
+          langLabel: "Idioma:",
+          title: "Rastreador de Tiempo Unix de 32 Bits",
+          intLabel: "Valor Entero con Signo de 32 Bits (Segundos):",
+          binaryLabel: "REGISTRO BINARIO DE 32 BITS (BIT DE SIGNO RESALTADO):",
+          localClock: "Reloj Local",
+          gmtClock: "Reloj GMT",
+          simBtn: "Simular Desbordamiento (10s)",
+          simActive: "Simulando Desbordamiento (10s)...",
+          resetBtn: "Volver a Tiempo Real",
+          resetLocked10: "Reinicio Bloqueado (10s)",
+          returnActive: "Volviendo al Presente (30s)...",
+          resetLocked30: "Reinicio Bloqueado (30s)",
+          sunsetLabel: "Salto al Límite",
+          returnLabel: "Regreso al Presente",
+          epochRate: "Velocidad: 1x (ÉPOCA UNIX!)",
+          ratePrefix: "Velocidad: ~",
+          statusLive: "Tiempo restante hasta el desbordamiento:",
+          statusSunset: "OCASO DEL TIEMPO DE 32 BITS — Acelerando hacia 2038...",
+          statusEpoch: "ÉPOCA UNIX ALCANZADA (1 ENE 1970 00:00:00 GMT) — ¡Tiempo Real 1x!",
+          statusReturn: "ACELERANDO DESDE EL LÍMITE NEGATIVO AL PRESENTE...",
+          statusOverflow: "¡ERROR CRÍTICO: DESBORDAMIENTO DE ENTERO CON SIGNO!",
+          cutoffLocal: "Límite (Hora Local)",
+          cutoffGmt: "Límite (GMT)",
+          explanation: "<strong>¿Qué pasa en el límite?</strong> Cuando el contador de 32 bits llega al máximo, pasa a un número negativo y muestra el 13 de diciembre de 1901 a las 20:45:52 GMT en sistemas sin parchear. <em>Revisa si tu sistema es de 32 o 64 bits.</em>"
+        },
+        fr: {
+          langLabel: "Langue :",
+          title: "Suivi du Temps Unix 32 Bits",
+          intLabel: "Valeur Entière Signée 32 Bits (Secondes) :",
+          binaryLabel: "REGISTRE BINAIRE 32 BITS (BIT DE SIGNE EN SURBRILLANCE) :",
+          localClock: "Horloge Locale",
+          gmtClock: "Horloge GMT",
+          simBtn: "Simuler le Dépassement (10s)",
+          simActive: "Simulation du Dépassement (10s)...",
+          resetBtn: "Retour au Temps Réel",
+          resetLocked10: "Réinit. Verrouillée (10s)",
+          returnActive: "Retour au Présent (30s)...",
+          resetLocked30: "Réinit. Verrouillée (30s)",
+          sunsetLabel: "Course vers 2038",
+          returnLabel: "Retour au Présent",
+          epochRate: "Vitesse : 1x (ÉPOQUE UNIX !)",
+          ratePrefix: "Vitesse : ~",
+          statusLive: "Temps restant avant dépassement :",
+          statusSunset: "FIN DU TEMPS 32 BITS — Accélération vers 2038...",
+          statusEpoch: "ÉPOQUE UNIX ATTEINTE (1 JANV. 1970 00:00:00 GMT) — Temps Réel 1x !",
+          statusReturn: "ACCÉLÉRATION DEPUIS LA LIMITE NÉGATIVE VERS LE PRÉSENT...",
+          statusOverflow: "ERREUR CRITIQUE : DÉPASSEMENT D'ENTIER SIGNÉ !",
+          cutoffLocal: "Limite (Heure Locale)",
+          cutoffGmt: "Limite (GMT)",
+          explanation: "<strong>Que se passe-t-il à la limite ?</strong> Lorsque le compteur 32 bits atteint son maximum, il passe à un nombre négatif, affichant le 13 décembre 1901 à 20:45:52 GMT sur les systèmes non corrigés. <em>Vérifiez si votre système est en 32 ou 64 bits.</em>"
+        },
+        de: {
+          langLabel: "Sprache:",
+          title: "32-Bit-Unix-Zeit-Tracker",
+          intLabel: "Vorzeichenbehafteter 32-Bit-Integerwert (Sekunden):",
+          binaryLabel: "32-BIT-BINÄRREGISTER (VORZEICHENBIT HERVORGEHOBEN):",
+          localClock: "Lokale Uhr",
+          gmtClock: "GMT-Uhr",
+          simBtn: "Überlauf Simulieren (10s)",
+          simActive: "Überlauf wird Simuliert (10s)...",
+          resetBtn: "Zurück zur Live-Zeit",
+          resetLocked10: "Reset Gesperrt (10s)",
+          returnActive: "Rückkehr zur Gegenwart (30s)...",
+          resetLocked30: "Reset Gesperrt (30s)",
+          sunsetLabel: "Lauf zum Limit",
+          returnLabel: "Zurück zur Gegenwart",
+          epochRate: "Tempo: 1x (UNIX-EPOCH!)",
+          ratePrefix: "Tempo: ~",
+          statusLive: "Verbleibende Zeit bis zum Überlauf:",
+          statusSunset: "ENDE DER 32-BIT-ZEIT — Beschleunigung Richtung 2038...",
+          statusEpoch: "UNIX-EPOCH ERREICHT (1. JAN. 1970 00:00:00 GMT) — Echtzeit 1x!",
+          statusReturn: "BESCHLEUNIGUNG VOM NEGATIVEN LIMIT IN DIE GEGENWART...",
+          statusOverflow: "KRITISCHER FEHLER: INTEGER-ÜBERLAUF!",
+          cutoffLocal: "Limit (Lokalzeit)",
+          cutoffGmt: "Limit (GMT)",
+          explanation: "<strong>Was passiert am Limit?</strong> Wenn der 32-Bit-Zähler sein Maximum erreicht, springt er auf eine negative Zahl und deutet das Datum als 13. Dezember 1901, 20:45:52 GMT. <em>Prüfe, ob dein System 32-Bit oder 64-Bit verwendet.</em>"
+        },
+        ja: {
+          langLabel: "言語:",
+          title: "32ビット Unix時刻トラッカー",
+          intLabel: "符号付き32ビット整数値（秒）:",
+          binaryLabel: "32ビット・バイナリレジスタ（符号ビット強調表示）:",
+          localClock: "ローカル時刻",
+          gmtClock: "GMT時刻",
+          simBtn: "オーバーフローをシミュレート (10秒)",
+          simActive: "オーバーフロー実行中 (10秒)...",
+          resetBtn: "現在時刻に戻す",
+          resetLocked10: "リセット固定中 (10秒)",
+          returnActive: "現在時刻へ復帰中 (30秒)...",
+          resetLocked30: "リセット固定中 (30秒)",
+          sunsetLabel: "2038年へ加速",
+          returnLabel: "現在へ復帰",
+          epochRate: "速度: 1x (UNIXエポック!)",
+          ratePrefix: "速度: ~",
+          statusLive: "オーバーフローまでの残り時間:",
+          statusSunset: "32ビット時刻の限界へ加速中...",
+          statusEpoch: "UNIXエポック到達（1970年1月1日 00:00:00 GMT）— 等倍1x!",
+          statusReturn: "最小値から現在時刻へ高速移動中...",
+          statusOverflow: "重大エラー: 符号付き整数オーバーフロー!",
+          cutoffLocal: "限界時刻（現地時間）",
+          cutoffGmt: "限界時刻 (GMT)",
+          explanation: "<strong>限界に達するとどうなる？</strong> 32ビットカウンタが最大値を超えると負の数に折り返し、未対策システムでは1901年12月13日 20:45:52 GMTと誤認されます。<em>OSが32ビットか64ビットか確認してください。</em>"
+        }
+      };
+
+      let lang = "en";
+      let mode = 'live';
+      let animStartRealMs = 0;
+      let animStartVirtualMs = 0;
+      let hasTriggeredCrash = false;
+
+      let localFormatter = new Intl.DateTimeFormat(undefined, {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short'
+      });
+
+      let gmtFormatter = new Intl.DateTimeFormat("en-GB", {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'GMT',
+        timeZoneName: 'short'
+      });
+
+      function t() {
+        return TRANSLATIONS[lang] || TRANSLATIONS.en;
+      }
+
+      function applyLanguage(newLang) {
+        lang = TRANSLATIONS[newLang] ? newLang : "en";
+        document.documentElement.lang = lang;
+        const localeTag = lang === "en" ? undefined : lang;
+
+        localFormatter = new Intl.DateTimeFormat(localeTag, {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZoneName: 'short'
+        });
+
+        gmtFormatter = new Intl.DateTimeFormat(localeTag || "en-GB", {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZone: 'GMT',
+          timeZoneName: 'short'
+        });
+
+        const strings = t();
+        const cutoffTarget = new Date(targetMs);
+        document.getElementById("lang-label").textContent = strings.langLabel;
+        document.getElementById("title").textContent = strings.title;
+        document.getElementById("int-label").textContent = strings.intLabel;
+        document.getElementById("binary-label").textContent = strings.binaryLabel;
+        document.getElementById("local-clock-prefix").textContent = strings.localClock;
+        document.getElementById("gmt-clock-prefix").textContent = strings.gmtClock;
+        document.getElementById("cutoff-local-prefix").textContent = strings.cutoffLocal;
+        document.getElementById("cutoff-gmt-prefix").textContent = strings.cutoffGmt;
+        document.getElementById("cutoff-local").textContent = localFormatter.format(cutoffTarget);
+        document.getElementById("cutoff-gmt").textContent = gmtFormatter.format(cutoffTarget);
+        document.getElementById("explanation").innerHTML = strings.explanation;
+
+        const btnSim = document.getElementById("btn-sim");
+        const btnReset = document.getElementById("btn-reset");
+        if (mode === 'forward_warp') {
+          btnSim.textContent = strings.simActive;
+          btnReset.textContent = strings.resetLocked10;
+        } else if (mode === 'return_warp') {
+          btnSim.textContent = strings.returnActive;
+          btnReset.textContent = strings.resetLocked30;
+        } else {
+          btnSim.textContent = strings.simBtn;
+          btnReset.textContent = strings.resetBtn;
+        }
+      }
+
+      function init() {
+        const langSelect = document.getElementById("lang-select");
+        const btnSim = document.getElementById("btn-sim");
+        const btnReset = document.getElementById("btn-reset");
+        const progressWrap = document.getElementById("sim-progress-wrap");
+        const progressFill = document.getElementById("sim-progress-fill");
+        const progressMeta = document.getElementById("sim-progress-meta");
+        const skySunset = document.getElementById("sky-sunset");
+        const skyReturn = document.getElementById("sky-return");
+        const card = document.getElementById("main-card");
+
+        if (!btnSim || !btnReset || !card) return;
+
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Local";
+        document.getElementById("tz-name").textContent = tz;
+        applyLanguage("en");
+
+        langSelect.addEventListener("change", function () {
+          applyLanguage(langSelect.value);
+        });
+
+        function clearCrashEffects() {
+          document.body.classList.remove("system-crashed");
+          card.classList.remove("crashed-card", "impact-shake");
+        }
+
+        function triggerCrashEffects() {
+          if (hasTriggeredCrash) return;
+          hasTriggeredCrash = true;
+
+          const strings = t();
+          document.body.classList.add("system-crashed");
+          card.classList.add("crashed-card", "impact-shake");
+
+          btnSim.style.display = "inline-block";
+          btnSim.disabled = false;
+          btnSim.textContent = strings.simBtn;
+          btnReset.style.display = "inline-block";
+          btnReset.disabled = false;
+          btnReset.textContent = strings.resetBtn;
+
+          setTimeout(function () {
+            card.classList.remove("impact-shake");
+          }, 600);
+        }
+
+        btnSim.addEventListener("click", function () {
+          if (mode === 'forward_warp' || mode === 'return_warp') return;
+
+          const strings = t();
+          mode = 'forward_warp';
+          hasTriggeredCrash = false;
+          animStartRealMs = performance.now();
+          animStartVirtualMs = Date.now();
+
+          clearCrashEffects();
+          skyReturn.style.opacity = "0";
+          skySunset.style.opacity = "0.2";
+
+          btnSim.disabled = true;
+          btnSim.textContent = strings.simActive;
+          btnReset.style.display = "inline-block";
+          btnReset.disabled = true;
+          btnReset.textContent = strings.resetLocked10;
+
+          progressWrap.style.display = "block";
+          progressMeta.style.color = "#fb923c";
+          progressFill.style.background = "linear-gradient(90deg, #38bdf8, #f97316, #ef4444)";
+        });
+
+        btnReset.addEventListener("click", function () {
+          if (mode === 'forward_warp' || mode === 'return_warp') return;
+
+          const strings = t();
+          mode = 'return_warp';
+          hasTriggeredCrash = false;
+          animStartRealMs = performance.now();
+          animStartVirtualMs = negativeLimitMs;
+
+          clearCrashEffects();
+          skySunset.style.opacity = "0";
+          skyReturn.style.opacity = "0.85";
+
+          btnSim.style.display = "inline-block";
+          btnSim.disabled = true;
+          btnSim.textContent = strings.returnActive;
+          btnReset.style.display = "inline-block";
+          btnReset.disabled = true;
+          btnReset.textContent = strings.resetLocked30;
+
+          progressWrap.style.display = "block";
+          progressMeta.style.color = "#38bdf8";
+          progressFill.style.background = "linear-gradient(90deg, #ef4444, #6366f1, #38bdf8)";
+        });
+
+        function formatBinary32(num) {
+          const bin = (num >>> 0).toString(2).padStart(32, '0');
+          const signBit = bin[0];
+          const rest = bin.slice(1);
+          const formattedRest = rest.slice(0, 7) + " " + rest.slice(7, 15) + " " + rest.slice(15, 23) + " " + rest.slice(23, 31);
+          const flippedClass = signBit === '1' ? 'flipped' : '';
+          return '<span class="sign-bit ' + flippedClass + '">' + signBit + '</span>' + formattedRest;
+        }
+
+        function animate(nowPerf) {
+          const strings = t();
+          const currentPerf = typeof nowPerf === "number" ? nowPerf : performance.now();
+          const elapsedReal = currentPerf - animStartRealMs;
+          let virtualMs = Date.now();
+
+          if (mode === 'live') {
+            virtualMs = Date.now();
+          } else if (mode === 'forward_warp') {
+            const progress = Math.min(elapsedReal / DURATION_MS, 1);
+            virtualMs = animStartVirtualMs + (targetMs - animStartVirtualMs) * progress;
+
+            skySunset.style.opacity = (0.2 + progress * 0.7).toFixed(2);
+
+            const clampedSec = Math.min(elapsedReal / 1000, 10).toFixed(1);
+            const rate = Math.round(((targetMs - animStartVirtualMs) / 1000) / 10);
+            document.getElementById("sim-timer-label").textContent = strings.sunsetLabel + ": " + clampedSec + "s / 10.0s";
+            document.getElementById("sim-speed-label").textContent = strings.ratePrefix + rate.toLocaleString() + "x";
+            progressFill.style.width = (progress * 100) + "%";
+
+            if (progress >= 1) {
+              mode = 'overflowed';
+              virtualMs = targetMs;
+            }
+          } else if (mode === 'overflowed') {
+            virtualMs = targetMs + (elapsedReal - DURATION_MS);
+          } else if (mode === 'return_warp') {
+            const TOTAL_RETURN_MS = 30000;
+            const EPOCH_PRE_MS = -5000;
+            const EPOCH_POST_MS = 5000;
+            const liveNowMs = Date.now();
+            const totalProgress = Math.min(elapsedReal / TOTAL_RETURN_MS, 1);
+            const clampedSec = Math.min(elapsedReal / 1000, 30).toFixed(1);
+
+            let rateLabel = "";
+            if (!(elapsedReal >= 10000)) {
+              const leg1Progress = elapsedReal / 10000;
+              virtualMs = negativeLimitMs + (EPOCH_PRE_MS - negativeLimitMs) * leg1Progress;
+              const rate = Math.round(((EPOCH_PRE_MS - negativeLimitMs) / 1000) / 10);
+              rateLabel = strings.ratePrefix + rate.toLocaleString() + "x";
+            } else if (!(elapsedReal >= 20000)) {
+              const epochElapsed = elapsedReal - 10000;
+              virtualMs = EPOCH_PRE_MS + epochElapsed;
+              rateLabel = strings.epochRate;
+            } else {
+              const leg3Progress = Math.min((elapsedReal - 20000) / 10000, 1);
+              virtualMs = EPOCH_POST_MS + (liveNowMs - EPOCH_POST_MS) * leg3Progress;
+              const rate = Math.round(((liveNowMs - EPOCH_POST_MS) / 1000) / 10);
+              rateLabel = strings.ratePrefix + rate.toLocaleString() + "x";
+            }
+
+            skyReturn.style.opacity = (0.85 * (1 - totalProgress * 0.75)).toFixed(2);
+            document.getElementById("sim-timer-label").textContent = strings.returnLabel + ": " + clampedSec + "s / 30.0s";
+            document.getElementById("sim-speed-label").textContent = rateLabel;
+            progressFill.style.width = (totalProgress * 100) + "%";
+
+            if (elapsedReal >= TOTAL_RETURN_MS) {
+              mode = 'live';
+              virtualMs = Date.now();
+              skyReturn.style.opacity = "0";
+              progressWrap.style.display = "none";
+
+              btnSim.style.display = "inline-block";
+              btnSim.disabled = false;
+              btnSim.textContent = strings.simBtn;
+
+              btnReset.style.display = "none";
+              btnReset.disabled = true;
+              btnReset.textContent = strings.resetBtn;
+            }
+          }
+
+          const elElapsed = document.getElementById("elapsed");
+          const elBinary = document.getElementById("binary-display");
+          const elLocalDate = document.getElementById("local-date");
+          const elGmtDate = document.getElementById("gmt-date");
+          const elStatus = document.getElementById("status");
+          const elCounter = document.getElementById("counter");
+          const elTitle = document.getElementById("title");
+
+          const actualSeconds = Math.floor(virtualMs / 1000);
+          const displaySeconds = (mode === 'return_warp') ? actualSeconds : (actualSeconds | 0);
+          
+          elElapsed.textContent = displaySeconds.toLocaleString();
+          elBinary.innerHTML = formatBinary32(displaySeconds);
+
+          const perceivedDate = new Date(displaySeconds * 1000);
+          elLocalDate.textContent = localFormatter.format(perceivedDate);
+          elGmtDate.textContent = gmtFormatter.format(perceivedDate);
+
+          const diffMs = targetMs - virtualMs;
+
+          if (mode === 'overflowed' || (mode !== 'return_warp' && !(diffMs > 0))) {
+            triggerCrashEffects();
+
+            const elapsedMs = Math.abs(diffMs);
+            const totalSeconds = Math.floor(elapsedMs / 1000);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            elElapsed.classList.remove("warping-sunset", "warping-return");
+            elElapsed.classList.add("overflowed", "glitch-text");
+            elLocalDate.classList.add("overflowed", "glitch-text");
+            elGmtDate.classList.add("overflowed", "glitch-text");
+            elTitle.classList.add("glitch-text");
+            elStatus.classList.add("overflowed");
+            
+            elStatus.textContent = strings.statusOverflow;
+            elCounter.textContent = "T+ " + days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+          } else {
+            const totalSeconds = Math.max(0, Math.floor(diffMs / 1000));
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            elElapsed.classList.remove("overflowed", "glitch-text", "warping-sunset", "warping-return");
+            elLocalDate.classList.remove("overflowed", "glitch-text");
+            elGmtDate.classList.remove("overflowed", "glitch-text");
+            elTitle.classList.remove("glitch-text");
+            elStatus.classList.remove("overflowed");
+
+            if (mode === 'forward_warp') {
+              elElapsed.classList.add("warping-sunset");
+              elStatus.textContent = strings.statusSunset;
+            } else if (mode === 'return_warp') {
+              elElapsed.classList.add("warping-return");
+              if (elapsedReal >= 10000 && !(elapsedReal >= 20000)) {
+                elStatus.textContent = strings.statusEpoch;
+              } else {
+                elStatus.textContent = strings.statusReturn;
+              }
+            } else {
+              elStatus.textContent = strings.statusLive;
+            }
+            
+            elCounter.textContent = "T- " + days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+          }
+
+          requestAnimationFrame(animate);
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
